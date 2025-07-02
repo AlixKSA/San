@@ -2,36 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mini Sandbox Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sandbox MooLike</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #eee; font-family: sans-serif; user-select: none; }
-    canvas { background: #cceeff; display: block; margin: 20px auto; border: 3px solid #333; }
+    html, body { height: 100%; overflow: hidden; }
+    canvas { background: #cceeff; display: block; }
 
-    #resources {
-      text-align: center;
-      font-size: 18px;
-      margin-bottom: 10px;
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #000;
+      background: rgba(255,255,255,0.7);
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-family: sans-serif;
+      font-size: 16px;
     }
 
     .controls {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 10px;
+      gap: 15px;
     }
 
     .btn {
       width: 60px;
       height: 60px;
-      font-size: 25px;
+      font-size: 24px;
       text-align: center;
       line-height: 60px;
       background: #444;
-      color: #fff;
-      border-radius: 10px;
-      user-select: none;
+      color: white;
+      border-radius: 12px;
     }
 
     .btn:active { background: #222; }
@@ -39,8 +46,8 @@
 </head>
 <body>
 
-<div id="resources">🪵: 0 | 🪨: 0 | 🍎: 0</div>
-<canvas id="game" width="800" height="400"></canvas>
+<canvas id="game"></canvas>
+<div id="hud">🪵: 0 | 🪨: 0 | 🍎: 0</div>
 
 <div class="controls">
   <div class="btn" id="left">⬅️</div>
@@ -52,72 +59,86 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
-  let player = { x: 100, y: 300, size: 30, speed: 4 };
-  let keys = { left: false, right: false, hit: false };
+  // Resize canvas to fit window
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
 
+  let player = { x: 0, y: 0, size: 30, speed: 4 };
+  let keys = { left: false, right: false, hit: false };
   let wood = 0, stone = 0, food = 0;
 
-  let resources = [
-    { x: 200, y: 320, type: "tree", hp: 3 },
-    { x: 300, y: 320, type: "tree", hp: 3 },
-    { x: 400, y: 320, type: "rock", hp: 3 },
-    { x: 500, y: 320, type: "rock", hp: 3 },
-    { x: 600, y: 320, type: "bush", hp: 2 }
-  ];
+  let resources = [];
 
-  function updateResourcesUI() {
-    document.getElementById("resources").textContent = `🪵: ${wood} | 🪨: ${stone} | 🍎: ${food}`;
+  // Generate random world
+  for (let i = 0; i < 100; i++) {
+    let type = ["tree", "rock", "bush"][Math.floor(Math.random() * 3)];
+    let hp = type === "bush" ? 2 : 3;
+    let x = Math.random() * 3000 - 1500;
+    let y = Math.random() * 3000 - 1500;
+    resources.push({ x, y, type, hp });
   }
 
-  function drawPlayer() {
-    ctx.fillStyle = "#444";
-    ctx.fillRect(player.x, player.y, player.size, player.size);
+  function updateHUD() {
+    document.getElementById("hud").textContent = `🪵: ${wood} | 🪨: ${stone} | 🍎: ${food}`;
   }
 
-  function drawResources() {
-    for (let res of resources) {
-      if (res.type === "tree") ctx.fillStyle = "green";
-      else if (res.type === "rock") ctx.fillStyle = "gray";
-      else if (res.type === "bush") ctx.fillStyle = "red";
+  function drawPlayer(camX, camY) {
+    ctx.fillStyle = "#333";
+    ctx.fillRect(canvas.width/2 - player.size/2, canvas.height/2 - player.size/2, player.size, player.size);
+  }
 
-      ctx.fillRect(res.x, res.y, 30, 30);
+  function drawResources(camX, camY) {
+    for (let r of resources) {
+      if (r.type === "tree") ctx.fillStyle = "green";
+      else if (r.type === "rock") ctx.fillStyle = "gray";
+      else ctx.fillStyle = "red";
+      ctx.fillRect(r.x - camX, r.y - camY, 30, 30);
     }
   }
 
-  function handleInput() {
-    if (keys.left) player.x -= player.speed;
-    if (keys.right) player.x += player.speed;
-  }
-
   function handleHit() {
-    if (keys.hit) {
-      for (let res of resources) {
-        let dist = Math.abs(player.x - res.x);
-        if (dist < 40) {
-          res.hp--;
-          if (res.hp <= 0) {
-            if (res.type === "tree") wood++;
-            else if (res.type === "rock") stone++;
-            else if (res.type === "bush") food++;
-            resources.splice(resources.indexOf(res), 1);
-            updateResourcesUI();
-          }
-          break;
+    if (!keys.hit) return;
+    for (let r of resources) {
+      let dx = player.x - r.x;
+      let dy = player.y - r.y;
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 40) {
+        r.hp--;
+        if (r.hp <= 0) {
+          if (r.type === "tree") wood++;
+          else if (r.type === "rock") stone++;
+          else food++;
+          resources.splice(resources.indexOf(r), 1);
         }
+        updateHUD();
+        break;
       }
     }
   }
 
-  function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    handleInput();
-    drawResources();
-    drawPlayer();
+  function update() {
+    if (keys.left) player.x -= player.speed;
+    if (keys.right) player.x += player.speed;
     handleHit();
+  }
+
+  function gameLoop() {
+    update();
+    let camX = player.x - canvas.width / 2 + player.size/2;
+    let camY = player.y - canvas.height / 2 + player.size/2;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawResources(camX, camY);
+    drawPlayer(camX, camY);
+
     requestAnimationFrame(gameLoop);
   }
 
-  // Touch controls
+  // Touch + keyboard support
   document.getElementById("left").addEventListener("touchstart", () => keys.left = true);
   document.getElementById("left").addEventListener("touchend", () => keys.left = false);
 
@@ -127,7 +148,6 @@
   document.getElementById("hit").addEventListener("touchstart", () => keys.hit = true);
   document.getElementById("hit").addEventListener("touchend", () => keys.hit = false);
 
-  // Keyboard (اختياري للكمبيوتر)
   document.addEventListener("keydown", e => {
     if (e.key === "ArrowLeft") keys.left = true;
     if (e.key === "ArrowRight") keys.right = true;
@@ -140,9 +160,8 @@
     if (e.key === " ") keys.hit = false;
   });
 
-  updateResourcesUI();
+  updateHUD();
   gameLoop();
 </script>
-
 </body>
 </html>
